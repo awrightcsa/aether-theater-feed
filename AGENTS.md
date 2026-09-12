@@ -1,0 +1,8 @@
+- AetherTheater.com is the canonical source of public content.
+- This repository provides a validator for the canonical Aether Theater Musings endpoints.
+- Source content must be checked faithfully; do not silently rewrite, summarize, reinterpret, or replace it.
+- Aether Theater retains content, authorship, and brand authority.
+- v1 should use plain JavaScript on Node.js v24.x.
+- Keep v1 minimal: no framework, database, TypeScript, or persistent server unless later justified.
+- Prefer the smallest maintainable implementation.
+- Human-readable setup and recovery instructions are required before the project is considered operational.
