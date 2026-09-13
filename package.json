@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "mirror": "node scripts/mirror-feeds.js",
     "validate": "node scripts/validate-endpoints.js",
     "test": "node --test"
   }

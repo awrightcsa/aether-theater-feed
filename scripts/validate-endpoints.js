@@ -114,6 +114,32 @@ export function validateAtom(text) {
   return document;
 }
 
+export function validateEndpointText(name, text) {
+  if (name === "JSON") {
+    try {
+      validateJsonFeed(JSON.parse(text.replace(/^\uFEFF/, "")));
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`JSON endpoint is not valid JSON: ${error.message}`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+    return;
+  }
+
+  if (name === "RSS") {
+    validateRss(text);
+    return;
+  }
+  if (name === "Atom") {
+    validateAtom(text);
+    return;
+  }
+  throw new Error(`Unknown endpoint type: ${name}`);
+}
+
 async function fetchEndpoint(url, fetchImpl = fetch) {
   let response;
   try {
@@ -131,17 +157,17 @@ async function fetchEndpoint(url, fetchImpl = fetch) {
 
 export async function validateEndpoints(fetchImpl = fetch) {
   const checks = [
-    ["JSON", ENDPOINTS.json, validateJsonFeed],
-    ["RSS", ENDPOINTS.rss, validateRss],
-    ["Atom", ENDPOINTS.atom, validateAtom],
+    ["JSON", ENDPOINTS.json],
+    ["RSS", ENDPOINTS.rss],
+    ["Atom", ENDPOINTS.atom],
   ];
 
   const results = [];
-  for (const [name, url, validator] of checks) {
+  for (const [name, url] of checks) {
     let text;
     try {
       text = await fetchEndpoint(url, fetchImpl);
-      validator(name === "JSON" ? JSON.parse(text.replace(/^\uFEFF/, "")) : text);
+      validateEndpointText(name, text);
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new Error(`${name} endpoint ${url} is not valid JSON: ${error.message}`, {

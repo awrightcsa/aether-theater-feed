@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import os from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   ENDPOINTS,
@@ -7,6 +10,7 @@ import {
   validateJsonFeed,
   validateRss,
 } from "../scripts/validate-endpoints.js";
+import { mirrorFeeds } from "../scripts/mirror-feeds.js";
 
 const item = {
   id: "https://aethertheater.com/musings/f/example",
@@ -80,4 +84,50 @@ test("reports unavailable endpoints clearly", async () => {
     }),
     /unavailable: network down/,
   );
+});
+
+test("mirrors validated response bytes exactly", async () => {
+  const responses = new Map([
+    [ENDPOINTS.json, Buffer.from(`\uFEFF${JSON.stringify(feed)}\n`, "utf8")],
+    [
+      ENDPOINTS.rss,
+      Buffer.from('<?xml version="1.0"?>\n<rss><channel></channel></rss>\r\n', "utf8"),
+    ],
+    [
+      ENDPOINTS.atom,
+      Buffer.from('<?xml version="1.0"?>\n<feed><entry></entry></feed>\n', "utf8"),
+    ],
+  ]);
+  const outputDir = join(await mkdtemp(join(os.tmpdir(), "aether-mirror-")), "pages");
+  const indexPath = join(await mkdtemp(join(os.tmpdir(), "aether-index-")), "index.html");
+  const indexBytes = Buffer.from("<p>Compatibility documentation only.</p>\n", "utf8");
+  await writeFile(indexPath, indexBytes);
+  const fetchStub = async (url) => ({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    arrayBuffer: async () => responses.get(url),
+  });
+
+  await mirrorFeeds(outputDir, fetchStub, indexPath);
+
+  assert.deepEqual(await readFile(join(outputDir, "f.json")), responses.get(ENDPOINTS.json));
+  assert.deepEqual(await readFile(join(outputDir, "f.rss")), responses.get(ENDPOINTS.rss));
+  assert.deepEqual(await readFile(join(outputDir, "f.atom")), responses.get(ENDPOINTS.atom));
+  assert.deepEqual(await readFile(join(outputDir, "index.html")), indexBytes);
+});
+
+test("does not create mirror output when validation fails", async () => {
+  const parent = await mkdtemp(join(os.tmpdir(), "aether-mirror-failure-"));
+  const outputDir = join(parent, "pages");
+  const fetchStub = async (url) => ({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    arrayBuffer: async () =>
+      Buffer.from(url === ENDPOINTS.json ? "{}" : "<broken>", "utf8"),
+  });
+
+  await assert.rejects(mirrorFeeds(outputDir, fetchStub), /failed validation/);
+  await assert.rejects(readdir(outputDir), /ENOENT/);
 });
